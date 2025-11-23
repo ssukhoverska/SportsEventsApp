@@ -1,0 +1,593 @@
+
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'sem')
+    EXEC('CREATE SCHEMA sem');
+GO
+
+
+CREATE TABLE sem.event_status (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    status_name NVARCHAR(50) UNIQUE NOT NULL
+);
+INSERT INTO sem.event_status(status_name)
+VALUES ('planned'),('ongoing'),('finished'),('cancelled');
+GO
+
+
+CREATE TABLE sem.roles (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(100) UNIQUE NOT NULL,
+    description NVARCHAR(500)
+);
+GO
+
+
+CREATE TABLE sem.users (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    username NVARCHAR(100) UNIQUE NOT NULL,
+    email NVARCHAR(200) UNIQUE NOT NULL,
+    password_hash NVARCHAR(500) NOT NULL,
+    role_id INT FOREIGN KEY REFERENCES sem.roles(id),
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT NULL,
+    updated_at DATETIME2 NULL,
+    updated_by INT NULL,
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2 NULL,
+    deleted_by INT NULL
+);
+GO
+
+
+CREATE TABLE sem.sports (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code NVARCHAR(50) UNIQUE NOT NULL,
+    name NVARCHAR(200) NOT NULL,
+    description NVARCHAR(MAX),
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+CREATE TABLE sem.venues (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(200) NOT NULL,
+    address NVARCHAR(400),
+    capacity INT,
+    geo GEOGRAPHY NULL,
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2 NULL,
+    deleted_by INT NULL,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.events (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    title NVARCHAR(255) NOT NULL,
+    sport_id INT FOREIGN KEY REFERENCES sem.sports(id),
+    description NVARCHAR(MAX),
+    status_id INT FOREIGN KEY REFERENCES sem.event_status(id),
+    start_date DATE,
+    end_date DATE,
+    venue_id INT FOREIGN KEY REFERENCES sem.venues(id),
+    organizer_user_id INT FOREIGN KEY REFERENCES sem.users(id),
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2 NULL,
+    deleted_by INT NULL,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.event_sessions (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    event_id INT FOREIGN KEY REFERENCES sem.events(id) ON DELETE CASCADE,
+    title NVARCHAR(200) NOT NULL,
+    session_datetime DATETIME2 NOT NULL,
+    duration_minutes INT,
+    venue_id INT FOREIGN KEY REFERENCES sem.venues(id),
+
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2,
+    deleted_by INT,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.athletes (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    first_name NVARCHAR(100),
+    last_name NVARCHAR(100),
+    dob DATE,
+    country NVARCHAR(100),
+    bio NVARCHAR(MAX),
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2,
+    deleted_by INT,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.teams (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(200) UNIQUE NOT NULL,
+    country NVARCHAR(100),
+    founded_year INT,
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2,
+    deleted_by INT,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+CREATE TABLE sem.team_members (
+    team_id INT FOREIGN KEY REFERENCES sem.teams(id) ON DELETE CASCADE,
+    athlete_id INT FOREIGN KEY REFERENCES sem.athletes(id) ON DELETE CASCADE,
+    role NVARCHAR(100),
+    joined_at DATE,
+    left_at DATE,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT,
+    PRIMARY KEY (team_id, athlete_id)
+);
+GO
+
+
+CREATE TABLE sem.registrations (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    session_id INT FOREIGN KEY REFERENCES sem.event_sessions(id) ON DELETE CASCADE,
+    athlete_id INT FOREIGN KEY REFERENCES sem.athletes(id),
+    team_id INT FOREIGN KEY REFERENCES sem.teams(id),
+    registered_at DATETIME2 DEFAULT SYSDATETIME(),
+    status NVARCHAR(50) DEFAULT 'registered',
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2,
+    deleted_by INT,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.results (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    registration_id INT FOREIGN KEY REFERENCES sem.registrations(id) ON DELETE CASCADE,
+    score FLOAT,
+    place INT,
+    result_data NVARCHAR(MAX), -- JSON
+    recorded_at DATETIME2 DEFAULT SYSDATETIME(),
+    recorded_by INT,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.tickets (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    event_id INT FOREIGN KEY REFERENCES sem.events(id) ON DELETE CASCADE,
+    name NVARCHAR(200),
+    description NVARCHAR(MAX),
+    price DECIMAL(10,2),
+    quantity_total INT,
+    quantity_sold INT DEFAULT 0,
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2,
+    deleted_by INT,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.orders (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    buyer_user_id INT FOREIGN KEY REFERENCES sem.users(id),
+    ticket_id INT FOREIGN KEY REFERENCES sem.tickets(id),
+    quantity INT NOT NULL,
+    total_amount DECIMAL(10,2),
+    ordered_at DATETIME2 DEFAULT SYSDATETIME(),
+    status NVARCHAR(50) DEFAULT 'paid',
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.sponsors (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(200),
+    contact_info NVARCHAR(MAX),
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2,
+    deleted_by INT,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+CREATE TABLE sem.contracts (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    sponsor_id INT FOREIGN KEY REFERENCES sem.sponsors(id) ON DELETE CASCADE,
+    event_id INT FOREIGN KEY REFERENCES sem.events(id) ON DELETE CASCADE,
+    signed_at DATE,
+    amount DECIMAL(12,2),
+    terms NVARCHAR(MAX),
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2,
+    deleted_by INT,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.media (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    event_id INT FOREIGN KEY REFERENCES sem.events(id),
+    uploader_user_id INT FOREIGN KEY REFERENCES sem.users(id),
+    media_type NVARCHAR(50),
+    url NVARCHAR(MAX),
+    caption NVARCHAR(MAX),
+    metadata NVARCHAR(MAX), -- JSON
+    is_deleted BIT DEFAULT 0,
+    deleted_at DATETIME2,
+    deleted_by INT,
+    created_at DATETIME2 DEFAULT SYSDATETIME(),
+    created_by INT,
+    updated_at DATETIME2,
+    updated_by INT
+);
+GO
+
+
+CREATE TABLE sem.audit_logs (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    table_name NVARCHAR(200),
+    record_id NVARCHAR(50),
+    operation NVARCHAR(20),
+    changed_by INT,
+    changed_at DATETIME2 DEFAULT SYSDATETIME(),
+    change_details NVARCHAR(MAX)
+);
+GO
+
+
+
+CREATE OR ALTER TRIGGER sem.trg_users_update
+ON sem.users
+AFTER UPDATE
+AS
+BEGIN
+    UPDATE u SET updated_at = SYSDATETIME()
+    FROM sem.users u
+    JOIN inserted i ON u.id = i.id;
+END;
+GO
+
+
+
+-- 1. Soft delete event
+CREATE OR ALTER PROCEDURE sem.soft_delete_event
+ @event_id INT,
+ @user_id INT
+AS
+BEGIN
+    UPDATE sem.events
+    SET is_deleted = 1,
+        deleted_at = SYSDATETIME(),
+        deleted_by = @user_id
+    WHERE id = @event_id;
+
+    UPDATE sem.event_sessions
+    SET is_deleted = 1,
+        deleted_at = SYSDATETIME(),
+        deleted_by = @user_id
+    WHERE event_id = @event_id;
+END;
+GO
+
+-- 2. Restore event
+CREATE OR ALTER PROCEDURE sem.restore_event
+ @event_id INT,
+ @user_id INT
+AS
+BEGIN
+    UPDATE sem.events SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL WHERE id = @event_id;
+    UPDATE sem.event_sessions SET is_deleted = 0, deleted_at = NULL, deleted_by = NULL WHERE event_id = @event_id;
+END;
+GO
+
+-- 3. Soft delete athlete
+CREATE OR ALTER PROCEDURE sem.soft_delete_athlete
+ @athlete_id INT,
+ @user_id INT
+AS
+BEGIN
+    UPDATE sem.athletes
+    SET is_deleted = 1, deleted_at = SYSDATETIME(), deleted_by = @user_id
+    WHERE id = @athlete_id;
+END;
+GO
+
+-- 4. Upsert athlete (MERGE)
+CREATE OR ALTER PROCEDURE sem.upsert_athlete
+ @id INT = NULL,
+ @first NVARCHAR(100),
+ @last NVARCHAR(100),
+ @dob DATE = NULL,
+ @country NVARCHAR(100) = NULL,
+ @bio NVARCHAR(MAX) = NULL,
+ @user_id INT
+AS
+BEGIN
+    IF @id IS NULL
+    BEGIN
+        INSERT INTO sem.athletes(first_name,last_name,dob,country,bio,created_by)
+        VALUES (@first,@last,@dob,@country,@bio,@user_id);
+
+        SELECT SCOPE_IDENTITY() AS id;
+    END
+    ELSE
+    BEGIN
+        UPDATE sem.athletes
+        SET first_name=@first,last_name=@last,dob=@dob,country=@country,bio=@bio,
+            updated_by=@user_id, updated_at=SYSDATETIME()
+        WHERE id=@id;
+
+        SELECT @id AS id;
+    END
+END;
+GO
+
+-- 5. Register athlete
+CREATE OR ALTER PROCEDURE sem.register_athlete_to_session
+ @session_id INT,
+ @athlete_id INT,
+ @team_id INT = NULL,
+ @user_id INT
+AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM sem.registrations
+               WHERE session_id=@session_id AND athlete_id=@athlete_id AND is_deleted=0)
+    BEGIN
+        RAISERROR('Athlete already registered',16,1);
+        RETURN;
+    END
+
+    INSERT INTO sem.registrations(session_id, athlete_id, team_id, created_by)
+    VALUES (@session_id, @athlete_id, @team_id, @user_id);
+
+    SELECT SCOPE_IDENTITY() AS id;
+END;
+GO
+
+-- 6. Record result
+CREATE OR ALTER PROCEDURE sem.record_result
+ @registration_id INT,
+ @score FLOAT,
+ @place INT,
+ @json NVARCHAR(MAX),
+ @user_id INT
+AS
+BEGIN
+    INSERT INTO sem.results(registration_id,score,place,result_data,recorded_by,created_by)
+    VALUES (@registration_id,@score,@place,@json,@user_id,@user_id);
+
+    SELECT SCOPE_IDENTITY() AS id;
+END;
+GO
+
+
+CREATE OR ALTER PROCEDURE sem.sell_tickets
+ @buyer_id INT,
+ @ticket_id INT,
+ @qty INT,
+ @user_id INT
+AS
+BEGIN
+    DECLARE @price DECIMAL(10,2);
+
+    SELECT @price = price FROM sem.tickets WHERE id=@ticket_id AND is_deleted=0;
+
+    IF @price IS NULL
+    BEGIN
+        RAISERROR('Ticket not found',16,1);
+        RETURN;
+    END
+
+    IF (SELECT quantity_total-quantity_sold FROM sem.tickets WHERE id=@ticket_id) < @qty
+    BEGIN
+        RAISERROR('Not enough tickets',16,1);
+        RETURN;
+    END
+
+    UPDATE sem.tickets
+    SET quantity_sold = quantity_sold + @qty,
+        updated_by = @user_id,
+        updated_at = SYSDATETIME()
+    WHERE id=@ticket_id;
+
+    INSERT INTO sem.orders(buyer_user_id,ticket_id,quantity,total_amount,created_by)
+    VALUES (@buyer_id,@ticket_id,@qty,@price*@qty,@user_id);
+
+    SELECT SCOPE_IDENTITY() AS id;
+END;
+GO
+
+
+CREATE OR ALTER PROCEDURE sem.soft_delete_ticket
+ @ticket_id INT,
+ @user_id INT
+AS
+BEGIN
+    UPDATE sem.tickets
+    SET is_deleted=1, deleted_at=SYSDATETIME(), deleted_by=@user_id
+    WHERE id=@ticket_id;
+END;
+GO
+
+-- 9. Soft delete contract
+CREATE OR ALTER PROCEDURE sem.soft_delete_contract
+ @contract_id INT,
+ @user_id INT
+AS
+BEGIN
+    UPDATE sem.contracts
+    SET is_deleted=1, deleted_at=SYSDATETIME(), deleted_by=@user_id
+    WHERE id=@contract_id;
+END;
+GO
+
+
+
+CREATE VIEW sem.v_active_events AS
+SELECT id,title,sport_id,start_date,end_date,venue_id,organizer_user_id
+FROM sem.events WHERE is_deleted=0;
+GO
+
+CREATE VIEW sem.v_event_schedule AS
+SELECT s.id AS session_id, s.event_id, e.title AS event_title, s.title AS session_title,
+       s.session_datetime, s.duration_minutes, s.venue_id
+FROM sem.event_sessions s
+JOIN sem.events e ON s.event_id=e.id
+WHERE s.is_deleted=0 AND e.is_deleted=0;
+GO
+
+CREATE VIEW sem.v_event_participants AS
+SELECT r.id AS registration_id, r.session_id, s.title AS session_title,
+       r.athlete_id, a.first_name + ' ' + a.last_name AS athlete_name,
+       r.team_id
+FROM sem.registrations r
+LEFT JOIN sem.event_sessions s ON r.session_id=s.id
+LEFT JOIN sem.athletes a ON r.athlete_id=a.id
+WHERE r.is_deleted=0;
+GO
+
+CREATE VIEW sem.v_ticket_sales_summary AS
+SELECT e.id AS event_id, e.title AS event_title,
+       t.id AS ticket_id, t.name,
+       t.quantity_sold, t.quantity_total,
+       t.quantity_sold * t.price AS revenue
+FROM sem.tickets t
+JOIN sem.events e ON t.event_id=e.id
+WHERE t.is_deleted=0 AND e.is_deleted=0;
+GO
+
+CREATE VIEW sem.v_active_venues AS
+SELECT id,name,address,capacity FROM sem.venues WHERE is_deleted=0;
+
+GO
+CREATE VIEW sem.v_active_athletes AS
+SELECT id,first_name,last_name,country,dob FROM sem.athletes WHERE is_deleted=0;
+GO
+
+CREATE VIEW sem.v_active_teams AS
+SELECT id,name,country FROM sem.teams WHERE is_deleted=0;
+GO
+
+CREATE VIEW sem.v_active_sponsors AS
+SELECT id,name,contact_info FROM sem.sponsors WHERE is_deleted=0;
+GO
+
+CREATE VIEW sem.v_recent_results AS
+SELECT TOP 100 r.id,r.registration_id,r.score,r.place,r.recorded_at,
+       s.event_id,s.title AS session_title
+FROM sem.results r
+JOIN sem.registrations rg ON rg.id=r.registration_id
+JOIN sem.event_sessions s ON s.id=rg.session_id
+ORDER BY r.recorded_at DESC;
+GO
+
+CREATE VIEW sem.v_orders_recent AS
+SELECT TOP 100 id,buyer_user_id,ticket_id,quantity,total_amount,ordered_at
+FROM sem.orders
+ORDER BY ordered_at DESC;
+GO
+
+CREATE OR ALTER FUNCTION sem.fn_athlete_fullname(@id INT)
+RETURNS NVARCHAR(300)
+AS
+BEGIN
+    DECLARE @name NVARCHAR(300);
+
+    SELECT @name = first_name + ' ' + last_name
+    FROM sem.athletes
+    WHERE id = @id;
+
+    RETURN @name;
+END;
+GO
+
+
+CREATE OR ALTER FUNCTION sem.fn_event_revenue(@event_id INT)
+RETURNS DECIMAL(18,2)
+AS
+BEGIN
+    DECLARE @rev DECIMAL(18,2);
+
+    SELECT @rev = SUM(t.quantity_sold * t.price)
+    FROM sem.tickets t
+    WHERE t.event_id = @event_id;
+
+    RETURN @rev;
+END;
+GO
+
+
+CREATE OR ALTER FUNCTION sem.fn_session_participants(@session_id INT)
+RETURNS INT
+AS
+BEGIN
+    DECLARE @cnt INT;
+
+    SELECT @cnt = COUNT(*)
+    FROM sem.registrations
+    WHERE session_id = @session_id AND is_deleted = 0;
+
+    RETURN @cnt;
+END;
+GO
+
+CREATE NONCLUSTERED INDEX IX_athletes_country
+ON sem.athletes(country);
+GO
+
+
+CREATE UNIQUE INDEX IX_teams_name
+ON sem.teams(name);
+GO
